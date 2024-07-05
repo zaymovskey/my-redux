@@ -1,9 +1,50 @@
-interface IAction {
-  type: string
-  payload?: any
+export interface IAction {
+  type: string;
+  payload?: any;
 }
 
-type TypeReducer<ReducerScheme = any> = (state: ReducerScheme, action: IAction) => ReducerScheme
+export type TypeReducer<ReducerScheme = { [key in string]: any }> = (
+  state: ReducerScheme,
+  action: IAction,
+) => ReducerScheme;
+
+export function createStore<T = { [key in string]: any }>(
+  reducer: TypeReducer<T>,
+) {
+  let state: T = reducer({} as T, { type: "INIT" });
+  let subscribers: Array<() => void> = [];
+
+  return {
+    getState: () => state,
+    dispatch: (action: IAction) => {
+      state = reducer(state, action);
+      subscribers.forEach((subscriber) => {
+        subscriber();
+      });
+    },
+    subscribe: (cb: () => void) => subscribers.push(cb),
+  };
+}
+
+export function combineReducers<
+  T extends { [key in string]: any },
+>(reducersMapper: {
+  [key in keyof T]: TypeReducer<T[key]>;
+}): (state: T, action: IAction) => T {
+  return (state: T, action: IAction) => {
+    let nextState: T = {} as T;
+    Object.entries(reducersMapper).forEach(
+      ([reducerName, reducer]) =>
+        ((nextState as { [key in string]: any })[reducerName] = reducer(
+          state[reducerName],
+          action,
+        )),
+    );
+    return nextState;
+  };
+}
+
+
 
 interface ICountReducerScheme {
   count: number
@@ -17,33 +58,6 @@ interface IUserReducerScheme {
 interface IStateScheme {
   user: IUserReducerScheme
   count: ICountReducerScheme
-}
-
-function createStore<T = any>(reducer: TypeReducer) {
-  let state: T = reducer({}, { type: 'INIT' });
-  let subscribers: Array<() => void> = []
-
-  return {
-    getState: () => state,
-    dispatch: (action: IAction) => {
-      state = reducer(state, action)
-      subscribers.forEach(subscriber => {
-        subscriber();
-      })
-    },
-    subscribe: (cb: () => void) => subscribers.push(cb)
-  }
-}
-
-function combineReducers<T>(reducers: {[key in keyof T]: TypeReducer}):
-  (state: T, action: IAction) => {[key in keyof T]: ReturnType<TypeReducer>} {
-  return (state: T, action: IAction) => {
-    const nextState: T = {} as T;
-    Object.entries<TypeReducer>(reducers).map(
-      ([reducerName, reducer]) => nextState[reducerName] = reducer(state, action)
-    )
-    return nextState
-  }
 }
 
 const countInitialState: ICountReducerScheme = {
@@ -101,14 +115,15 @@ const getToggleUserActivateAction = (): IAction => (
   {type: 'TOGGLE_ACTIVATE'}
 )
 
-store.subscribe(() => {console.log('change')})
-
 console.log(store.getState())
 
 store.dispatch(getIncrementAction(3))
 
 console.log(store.getState())
 
-store.dispatch(getToggleUserActivateAction())
 
-console.log(store.getState())
+
+
+
+
+
